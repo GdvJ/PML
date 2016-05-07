@@ -1,0 +1,104 @@
+##Introduction
+One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, we use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. The goal of this project is to predict the manner in which they did the exercise. This is the "classe" variable in the training set.
+
+```{r, echo=FALSE, include=FALSE}
+## Clear memory
+rm(list=ls())
+
+set.seed(24)
+
+## Load packages
+library(corrplot)
+library(kernlab)
+library(caret)
+library(randomForest)
+library(compiler)
+
+
+  
+## Set working directory
+setwd("C:/Users/Jvandegevel/Documents/Coursera/Practical machine learning")
+```
+
+
+#Data preparation
+Now, let's start with loading the training data.
+
+```{r}
+## Read-in training data
+trainingdata1 <- read.csv("pml-training.csv", na.strings=c("", "NA", "NULL", " "))
+```
+
+We will remove all columns with NA values in them.
+```{r}
+## Remove predictor variables with NA values
+trainingdata2 <- trainingdata1[ , colSums(is.na(trainingdata1)) == 0]
+```
+
+This reduces the number of variables from 160 to 60. The next step in the data preprocessing is the removal of variables that we know are not related to the dependent variable.
+
+```{r}
+## Remove variables that are useless for predicting
+remove <- c('X', 'user_name', 'raw_timestamp_part_1', 'raw_timestamp_part_2', 'cvtd_timestamp', 'new_window', 'num_window')
+trainingdata3 <- trainingdata2[, -which(names(trainingdata2) %in% remove)]
+```
+
+This reduces the number of variables from 60 to 53. Further reduction of the number of variables can be done based on their correlations. To investigate this, we can show a plot of the correlations.
+
+```{r}
+## Correlation plot
+corMatrix <- cor(trainingdata3[sapply(trainingdata3, is.numeric)])
+corrplot(corMatrix, order = "FPC", method = "square", type = "lower", tl.cex = 0.5, tl.col = rgb(0, 0, 0))
+```
+
+In the last step, We will perform PCA with a treshold of 0.99 to further reduce the number of variables. This reduces the total number of variables from 53 to 37.
+
+
+```{r}
+## Perform PCA to further reduce training data
+preProc <- preProcess(trainingdata3[sapply(trainingdata3, is.numeric)], method = "pca", thresh = 0.99)
+trainingdata4 <- predict(preProc, trainingdata3)
+```
+
+##Data partioning
+In this phase, the dataset will be split in a training and testing set.
+
+```{r}
+# Create a train and test set
+inTrain <- createDataPartition(y=trainingdata4$classe, p=0.7, list=FALSE)
+training <- trainingdata4[inTrain,]
+testing <- trainingdata4[-inTrain,]
+```
+
+We use a random forest as the model to perform the prediction. The accuracy of the model is 
+
+```{r}
+# Train the model
+ModelFit <- randomForest(classe~., data=training, ntree=100, importance=TRUE)
+
+# Make a prediction
+PredictionModel <- predict(ModelFit, testing)
+Accuracy <- postResample(testing$classe, PredictionModel)
+Accuracy
+```
+
+It can be seen that the accuracy is around 97%, which is good.
+
+##Model prediction
+First, we read in the validation data set on which we want to use the model. The same preprocessing steps as for the training set are performed.
+
+```{r}
+#Read-in validation data
+validationdata1 <- read.csv("pml-testing.csv", na.strings=c("", "NA", "NULL", " "))
+validationdata2 <- validationdata1[ , colSums(is.na(validationdata1)) == 0]
+validationdata3 <- validationdata2[, -which(names(validationdata2) %in% remove)]
+validationdata4 <- predict(preProc, validationdata3)
+```
+
+The last step is making the actual prediction for the 20 cases. The output can be seen below:
+
+```{r}
+prediction <- predict(ModelFit, validationdata4)
+
+prediction
+```
